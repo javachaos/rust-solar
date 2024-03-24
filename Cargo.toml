@@ -1,0 +1,25 @@
+[package]
+name = "rust-solar"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# `bundled` causes us to automatically compile and link in an up to date
+# version of SQLite for you. This avoids many common build issues, and
+# avoids depending on the version of SQLite on the users system (or your
+# system), which may be old or missing. It's the right choice for most
+# programs that control their own SQLite databases.
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+serialport = "4.3.0"
+chrono = "0.4.35"
+regex = "1.10.3"
+ctrlc = "*"
+tui = "0.19"
+crossterm = "0.25"
+simplelog = "0.12.2"
+log = "*"
+
+[build-dependencies]
+winres = "0.1.12"
