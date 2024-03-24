@@ -93,39 +93,10 @@ impl DataPoint {
             panic!("Invalid DataPoint syntax.")
         };
         let data = data_str
-            .split(":")
+            .split(':')
             .filter_map(|s| s.parse::<f64>().ok())
             .collect::<Vec<_>>();
         Self::new(&data)
-    }
-
-    pub(crate) fn to_str(&self) -> String {
-        //TODO Test this crap
-        const COLON: char = ':';
-        const NEWLINE: char = '\n';
-        let mut result = String::from(self.battery_voltage.to_string());
-        result.push(COLON);
-        result.push_str(&self.pv_voltage.to_string());
-        result.push(COLON);
-        result.push_str(&self.load_current.to_string());
-        result.push(COLON);
-        result.push_str(&self.over_discharge.to_string());
-        result.push(COLON);
-        result.push_str(&self.battery_max.to_string());
-        result.push(COLON);
-        result.push_str(&self.battery_full.to_string());
-        result.push(COLON);
-        result.push_str(&self.charging.to_string());
-        result.push(COLON);
-        result.push_str(&self.battery_temp.to_string());
-        result.push(COLON);
-        result.push_str(&self.charge_current.to_string());
-        result.push(COLON);
-        result.push_str(&self.load_onoff.to_string());
-        result.push(COLON);
-        result.push_str(&self.timestamp.to_string());
-        result.push(NEWLINE);
-        result.to_owned()
     }
 
     pub(crate) fn get_time(&self) -> i64 {
@@ -133,7 +104,7 @@ impl DataPoint {
     }
 
     pub(crate) fn get_time_formatted(&self) -> String {
-        let date = DateTime::from_timestamp(self.timestamp.try_into().unwrap(), 0).unwrap();
+        let date = DateTime::from_timestamp(self.timestamp, 0).unwrap();
         date.to_rfc2822()
     }
 
