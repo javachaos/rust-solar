@@ -15,7 +15,6 @@ rusqlite = { version = "0.31.0", features = ["bundled"] }
 serialport = "4.3.0"
 chrono = "0.4.35"
 regex = "1.10.3"
-ctrlc = "*"
 tui = "0.19"
 crossterm = "0.25"
 simplelog = "0.12.2"

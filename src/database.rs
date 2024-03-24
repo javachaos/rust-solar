@@ -102,8 +102,8 @@ impl Database {
             }
         }
         match trans.commit() {
-            Ok(_) => {
-                info!("Wrote {} datapoints to database.", num_data)
+            Ok(()) => {
+                info!("Wrote {} datapoints to database.", num_data);
             }
             Err(e) => error!("{}", e),
         }

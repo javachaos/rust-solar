@@ -44,9 +44,10 @@ impl Default for DataPoint {
     fn default() -> Self {
         let now = SystemTime::now();
         let mut timestamp: i64 = 0;
-        match now.duration_since(UNIX_EPOCH) {
-            Ok(n) => timestamp = n.as_secs() as i64,
-            Err(_) => error!("WARNING: SystemTime is before UNIX EPOCH!"),
+        if let Ok(n) = now.duration_since(UNIX_EPOCH) {
+            timestamp = n.as_secs().try_into().expect("Unable to convert u64 to i64");
+        } else { 
+            error!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {
             timestamp,
@@ -68,9 +69,10 @@ impl DataPoint {
     pub(crate) fn new(data: &[f64]) -> Self {
         let now = SystemTime::now();
         let mut timestamp: i64 = 0;
-        match now.duration_since(UNIX_EPOCH) {
-            Ok(n) => timestamp = n.as_secs() as i64,
-            Err(_) => error!("WARNING: SystemTime is before UNIX EPOCH!"),
+        if let Ok(n) = now.duration_since(UNIX_EPOCH) {
+            timestamp = n.as_secs().try_into().expect("Unable to convert u64 to i64");
+        } else { 
+            error!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {
             timestamp,
@@ -87,9 +89,9 @@ impl DataPoint {
         }
     }
 
-    pub(crate) fn from_str(data_str: String) -> Self {
+    pub(crate) fn from_str(data_str: &str) -> Self {
         let regx = Regex::new(r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})").unwrap();
-        let Some(_caps) = regx.captures(&data_str) else {
+        let Some(_caps) = regx.captures(data_str) else {
             panic!("Invalid DataPoint syntax.")
         };
         let data = data_str

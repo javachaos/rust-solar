@@ -5,7 +5,7 @@ mod serial_data_logger;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
-use simplelog::*;
+use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger};
 
 use datapoint::DataPoint;
 use serial_data_logger::SerialDatalogger;
@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     cleanup_terminal(&mut terminal)?;
 
     if let Err(err) = res {
-        error!("{:?}", err)
+        error!("{:?}", err);
     }
 
     Ok(())
@@ -66,7 +66,7 @@ fn setup_terminal() -> TermResult {
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    Terminal::new(backend).map_err(|e| e.into())
+    Terminal::new(backend).map_err(std::convert::Into::into)
 }
 
 fn cleanup_terminal(terminal: &mut TermType) -> Result<(), Box<dyn Error>> {
@@ -94,13 +94,13 @@ fn setup_logging() -> Result<(), Box<dyn Error>> {
             File::create(LOGFILE_PATH).unwrap(),
         ),
     ])
-    .map_err(|e| e.into())
+    .map_err(std::convert::Into::into)
 }
 
 fn display_ports(ports: &[String]) {
     for (i, p) in ports.iter().enumerate() {
-        println!("{i}: {:?}", p);
-        info!("{i}: {:?}", p);
+        println!("{i}: {p:?}");
+        info!("{i}: {p:?}");
     }
 }
 
@@ -114,7 +114,7 @@ fn select_port(ports: &[String]) -> Result<&String, Box<dyn Error>> {
     let port_index = port_index_str
         .trim()
         .parse::<usize>()
-        .map_err(|e| format!("Invalid port index: {}", e))?;
+        .map_err(|e| format!("Invalid port index: {e}"))?;
 
     if port_index >= ports.len() {
         return Err("Invalid port index".into());

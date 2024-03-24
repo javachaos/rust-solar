@@ -52,7 +52,7 @@ impl SerialDatalogger {
     pub(crate) fn read_datapoint(&mut self) -> DataPoint {
         match self.read_serial_datapoint() {
             Ok(data) => {
-                let dp = DataPoint::from_str(data);
+                let dp = DataPoint::from_str(data.as_str());
                 self.database.add_datapoint(dp);
                 dp
             }

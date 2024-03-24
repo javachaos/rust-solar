@@ -8,7 +8,7 @@ fn main() -> io::Result<()> {
         WindowsResource::new()
             // This path can be absolute, or relative to your crate root.
             .set_icon("assets/application.ico")
-            .set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001000000000000)
+            .set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001_0000_0000_0000)
             .compile()?;
     }
     Ok(())
