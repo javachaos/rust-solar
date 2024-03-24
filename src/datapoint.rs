@@ -17,23 +17,26 @@ pub(crate) struct DataPoint {
     charging: f64,
     battery_temp: f64,
     charge_current: f64,
-    load_onoff: f64
+    load_onoff: f64,
 }
 
 impl fmt::Display for DataPoint {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {}v, {}v, {}A, {}, {}v, {}, {}, {}C, {}A, {})",
-               self.timestamp,
-               self.battery_voltage,
-               self.pv_voltage,
-               self.load_current,
-               self.over_discharge,
-               self.battery_max,
-               self.battery_full,
-               self.charging,
-               self.battery_temp,
-               self.charge_current,
-               self.load_onoff)
+        write!(
+            f,
+            "({}, {}v, {}v, {}A, {}, {}v, {}, {}, {}C, {}A, {})",
+            self.timestamp,
+            self.battery_voltage,
+            self.pv_voltage,
+            self.load_current,
+            self.over_discharge,
+            self.battery_max,
+            self.battery_full,
+            self.charging,
+            self.battery_temp,
+            self.charge_current,
+            self.load_onoff
+        )
     }
 }
 
@@ -56,7 +59,7 @@ impl Default for DataPoint {
             charging: 0.0,
             battery_temp: 0.0,
             charge_current: 0.0,
-            load_onoff: 0.0
+            load_onoff: 0.0,
         }
     }
 }
@@ -80,43 +83,48 @@ impl DataPoint {
             charging: data[6],
             battery_temp: data[7],
             charge_current: data[8],
-            load_onoff: data[9]
+            load_onoff: data[9],
         }
     }
 
     pub(crate) fn from_str(data_str: String) -> Self {
         let regx = Regex::new(r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})").unwrap();
-        let Some(_caps) = regx.captures(&data_str) else { panic!("Invalid DataPoint syntax.") };
-        let data = data_str.split(":").filter_map(|s| s.parse::<f64>()
-            .ok()).collect::<Vec<_>>();
+        let Some(_caps) = regx.captures(&data_str) else {
+            panic!("Invalid DataPoint syntax.")
+        };
+        let data = data_str
+            .split(":")
+            .filter_map(|s| s.parse::<f64>().ok())
+            .collect::<Vec<_>>();
         Self::new(&data)
     }
 
-    pub(crate) fn to_str(&self) -> String {//TODO Test this crap
+    pub(crate) fn to_str(&self) -> String {
+        //TODO Test this crap
         const COLON: char = ':';
         const NEWLINE: char = '\n';
         let mut result = String::from(self.battery_voltage.to_string());
-            result.push(COLON);
-            result.push_str(&self.pv_voltage.to_string());
-            result.push(COLON);
-            result.push_str(&self.load_current.to_string());
-            result.push(COLON);
-            result.push_str(&self.over_discharge.to_string());
-            result.push(COLON);
-            result.push_str(&self.battery_max.to_string());
-            result.push(COLON);
-            result.push_str(&self.battery_full.to_string());
-            result.push(COLON);
-            result.push_str(&self.charging.to_string());
-            result.push(COLON);
-            result.push_str(&self.battery_temp.to_string());
-            result.push(COLON);
-            result.push_str(&self.charge_current.to_string());
-            result.push(COLON);
-            result.push_str(&self.load_onoff.to_string());
-            result.push(COLON);
-            result.push_str(&self.timestamp.to_string());
-            result.push(NEWLINE);
+        result.push(COLON);
+        result.push_str(&self.pv_voltage.to_string());
+        result.push(COLON);
+        result.push_str(&self.load_current.to_string());
+        result.push(COLON);
+        result.push_str(&self.over_discharge.to_string());
+        result.push(COLON);
+        result.push_str(&self.battery_max.to_string());
+        result.push(COLON);
+        result.push_str(&self.battery_full.to_string());
+        result.push(COLON);
+        result.push_str(&self.charging.to_string());
+        result.push(COLON);
+        result.push_str(&self.battery_temp.to_string());
+        result.push(COLON);
+        result.push_str(&self.charge_current.to_string());
+        result.push(COLON);
+        result.push_str(&self.load_onoff.to_string());
+        result.push(COLON);
+        result.push_str(&self.timestamp.to_string());
+        result.push(NEWLINE);
         result.to_owned()
     }
 

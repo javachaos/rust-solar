@@ -1,12 +1,12 @@
+use crate::database::Database;
+use crate::datapoint::DataPoint;
+use serialport::SerialPort;
 use std::io::Read;
 use std::time::Duration;
-use serialport::SerialPort;
-use crate::datapoint::DataPoint;
-use crate::database::Database;
 
 pub(crate) struct SerialDatalogger {
     database: Database,
-    port: Box<dyn SerialPort>
+    port: Box<dyn SerialPort>,
 }
 
 impl SerialDatalogger {
@@ -18,13 +18,13 @@ impl SerialDatalogger {
         ports.into_iter().map(|x| x.port_name).collect()
     }
 
-
     pub(crate) fn new(port_name: String) -> Self {
         Self {
             database: Database::default(),
             port: serialport::new(port_name, Self::BAUD_RATE)
                 .timeout(Duration::from_millis(Self::SERIAL_TIMEOUT))
-                .open().unwrap()
+                .open()
+                .unwrap(),
         }
     }
 
@@ -44,7 +44,9 @@ impl SerialDatalogger {
             }
         }
         let data = String::from_utf8_lossy(&buf).to_string();
-        Ok(data.trim_end_matches(|c| c == '\r' || c == '\n').to_string())
+        Ok(data
+            .trim_end_matches(|c| c == '\r' || c == '\n')
+            .to_string())
     }
 
     pub(crate) fn read_datapoint(&mut self) -> DataPoint {
@@ -57,7 +59,7 @@ impl SerialDatalogger {
             Err(e) => {
                 error!("Error: {}.", e);
                 DataPoint::default()
-            },
+            }
         }
     }
 }
