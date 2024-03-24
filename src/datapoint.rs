@@ -45,8 +45,11 @@ impl Default for DataPoint {
         let now = SystemTime::now();
         let mut timestamp: i64 = 0;
         if let Ok(n) = now.duration_since(UNIX_EPOCH) {
-            timestamp = n.as_secs().try_into().expect("Unable to convert u64 to i64");
-        } else { 
+            timestamp = n
+                .as_secs()
+                .try_into()
+                .expect("Unable to convert u64 to i64");
+        } else {
             error!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {
@@ -70,8 +73,11 @@ impl DataPoint {
         let now = SystemTime::now();
         let mut timestamp: i64 = 0;
         if let Ok(n) = now.duration_since(UNIX_EPOCH) {
-            timestamp = n.as_secs().try_into().expect("Unable to convert u64 to i64");
-        } else { 
+            timestamp = n
+                .as_secs()
+                .try_into()
+                .expect("Unable to convert u64 to i64");
+        } else {
             error!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {

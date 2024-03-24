@@ -5,7 +5,9 @@ mod serial_data_logger;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
-use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger};
+use simplelog::{
+    ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+};
 
 use datapoint::DataPoint;
 use serial_data_logger::SerialDatalogger;
@@ -16,22 +18,21 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::{
-    error::Error,
-    fs::File,
-    io::{self, Write},
-    sync::{
+    collections::VecDeque, error::Error, fs::File, io, sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
-    },
-    thread::{self, sleep},
-    time::{Duration, Instant},
+    }, thread::{self, sleep}, time::{Duration, Instant}
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Cell, Row, Table},
-    Frame, Terminal,
+    layout::{Alignment, Constraint, Direction, Layout}, 
+    style::{Color, Modifier, Style},
+    symbols::Marker,
+    widgets::{Axis, Block, BorderType, Borders, Cell,
+        Chart, Dataset, GraphType, List, ListItem,
+        ListState, Row, Table},
+    Frame,
+    Terminal
 };
 
 // These types were too long...
@@ -44,11 +45,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
 
     let ports = SerialDatalogger::get_comms();
-    display_ports(&ports);
-
-    let selected_port = select_port(&ports)?;
-
     let mut terminal = setup_terminal()?;
+
+    let mut port_list_state = ListState::default();
+    port_list_state.select(Some(0));
+    let _ = display_ports(&mut terminal, &ports, &mut port_list_state);
+    let selected_port = &ports[port_list_state.selected().unwrap()];
+
     let tick_rate = Duration::from_millis(250);
     let res = run_app(&mut terminal, selected_port, tick_rate);
 
@@ -97,30 +100,45 @@ fn setup_logging() -> Result<(), Box<dyn Error>> {
     .map_err(std::convert::Into::into)
 }
 
-fn display_ports(ports: &[String]) {
+fn display_ports<B: Backend>(
+    terminal: &mut Terminal<B>,
+    ports: &[String],
+    port_list_state: &mut ListState,
+) -> io::Result<()> {
     for (i, p) in ports.iter().enumerate() {
-        println!("{i}: {p:?}");
         info!("{i}: {p:?}");
     }
-}
 
-fn select_port(ports: &[String]) -> Result<&String, Box<dyn Error>> {
-    print!("Please select a port: ");
-    io::stdout().flush()?;
-
-    let mut port_index_str = String::new();
-    io::stdin().read_line(&mut port_index_str)?;
-
-    let port_index = port_index_str
-        .trim()
-        .parse::<usize>()
-        .map_err(|e| format!("Invalid port index: {e}"))?;
-
-    if port_index >= ports.len() {
-        return Err("Invalid port index".into());
+    loop {
+        let _ = terminal.draw(|f| init_ui(f, ports.to_vec(), port_list_state));
+        if crossterm::event::poll(Duration::from_micros(100))? {
+            if let Event::Key(key) = event::read()? {
+                if let KeyCode::Enter = key.code {
+                    return Ok(());
+                }
+                if let KeyCode::Up = key.code {
+                    if let Some(selected) = port_list_state.selected() {
+                        let num_ports = ports.len();
+                        if selected > 0 {
+                            port_list_state.select(Some(selected - 1));
+                        } else {
+                            port_list_state.select(Some(num_ports - 1));
+                        }
+                    }
+                }
+                if let KeyCode::Down = key.code {
+                    if let Some(selected) = port_list_state.selected() {
+                        let num_ports = ports.len();
+                        if selected >= num_ports - 1 {
+                            port_list_state.select(Some(0));
+                        } else {
+                            port_list_state.select(Some(selected + 1));
+                        }
+                    }
+                }
+            }
+        }
     }
-
-    Ok(&ports[port_index])
 }
 
 fn run_app<B: Backend>(
@@ -149,12 +167,16 @@ fn run_app<B: Backend>(
         .spawn(task)
         .expect("Error: creating data logging thread failed.");
     let mut current_dp = DataPoint::default();
+    let mut data_buffer = Vec::with_capacity(256);
     loop {
         current_dp = match tx.recv_timeout(Duration::from_micros(1000)) {
-            Ok(v) => v,
+            Ok(v) => {
+                data_buffer.push(v);
+                v
+            },
             Err(_e) => current_dp,
         };
-        terminal.draw(|f| ui(f, current_dp))?;
+        terminal.draw(|f| ui(f, current_dp, data_buffer.clone().into()))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -174,7 +196,28 @@ fn run_app<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint) {
+fn init_ui<B: Backend>(f: &mut Frame<B>, ports: Vec<String>, port_list_state: &mut ListState) {
+    let size = f.size();
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Select Port")
+        .title_alignment(Alignment::Center)
+        .border_type(BorderType::Rounded);
+    f.render_widget(block, size);
+    let port_items: Vec<ListItem<'_>> = ports.iter().map(|f| ListItem::new(f.as_str())).collect();
+    let port_list = List::new(port_items)
+        .block(
+            Block::default()
+                .title("Port Selection")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
+        .highlight_symbol(">>");
+    f.render_stateful_widget(port_list, size, port_list_state);
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint, data_buffer: VecDeque<DataPoint>) {
     let size = f.size();
     let block = Block::default()
         .borders(Borders::ALL)
@@ -190,7 +233,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint) {
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(100), Constraint::Percentage(50)].as_ref())
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(chunks[0]);
     let load = if datapoint.get_load_onoff() > 0.0 {
         "On"
@@ -270,4 +313,25 @@ fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint) {
     ])
     .column_spacing(1);
     f.render_widget(table, top_chunks[0]);
+    
+    // Create the X axis and define its properties
+    let x_axis = Axis::default()
+        .title("Time (s)")
+        .style(Style::default()).bounds([0.0, 256.0])
+        .labels(vec!["0.0".into(), "128.0".into(), "256.0".into()]);
+    
+    // Create the Y axis and define its properties
+    let y_axis = Axis::default()
+        .title("Load Current (A)")
+        .style(Style::default())
+        .bounds([0.0, 100.0])
+        .labels(vec!["0.0".into(), "50.0".into(), "100.0".into()]);
+
+    let load_current_buffer = data_buffer.iter().enumerate()
+        .map(|(i, f)| (i as f64, f.get_load_current()))
+        .collect::<Vec<(f64, f64)>>();
+    let chart = Chart::new(vec![
+        Dataset::default().marker(Marker::Block).graph_type(GraphType::Scatter).data(load_current_buffer.as_slice())
+    ]).block(Block::default().title("Load Current vs Time")).x_axis(x_axis).y_axis(y_axis);
+    f.render_widget(chart, top_chunks[1]);
 }
