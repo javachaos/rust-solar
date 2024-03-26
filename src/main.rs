@@ -24,10 +24,10 @@ use std::{
     io,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, Mutex,
     },
     thread::{self, sleep},
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -51,7 +51,7 @@ const LOGFILE_PATH: &str = "solar-rust.log";
 
 /// A custom widget for a toggle switch.
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct LoadToggleSwitch<'a> {
     is_on: bool,
     labels: (&'a str, &'a str),
@@ -110,8 +110,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let _ = display_ports(&mut terminal, &ports, &mut port_list_state);
     let selected_port = &ports[port_list_state.selected().unwrap()];
 
-    let tick_rate = Duration::from_millis(250);
-    let res = run_app(&mut terminal, selected_port, tick_rate);
+    let res = run_app(&mut terminal, selected_port);
 
     cleanup_terminal(&mut terminal)?;
 
@@ -199,18 +198,16 @@ fn display_ports<B: Backend>(
     }
 }
 
-fn run_app<B: Backend>(
-    terminal: &mut Terminal<B>,
-    selected_port: &String,
-    tick_rate: Duration,
-) -> io::Result<()> {
-    let mut last_tick = Instant::now();
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io::Result<()> {
     let (rx, tx) = mpsc::channel();
-    let (bg_tx, bg_rx) = mpsc::channel();
+    let (bg_tx_input, bg_rx_input) = mpsc::channel();
     let mut data_logger = SerialDatalogger::new(selected_port.to_string());
     let initial_dp = data_logger.read_datapoint();
-    let mut load_switch = LoadToggleSwitch::new(initial_dp.get_load_onoff() > 0.0, ("ON", "OFF"));
-    let toggle = Arc::new(AtomicBool::new(load_switch.is_on));
+    let load_switch = Arc::new(Mutex::new(LoadToggleSwitch::new(
+        initial_dp.get_load_onoff() > 0.0,
+        ("ON", "OFF"),
+    )));
+    let toggle = Arc::new(AtomicBool::new(load_switch.lock().unwrap().is_on));
     let running = Arc::new(AtomicBool::new(true));
     let builder = thread::Builder::new()
         .name("datalogger".into())
@@ -223,7 +220,7 @@ fn run_app<B: Backend>(
                 let datapoint = data_logger.read_datapoint();
                 rx.send(datapoint).unwrap();
                 sleep(Duration::from_secs(1));
-                match bg_rx.recv_timeout(Duration::from_micros(1000)) {
+                match bg_rx_input.recv_timeout(Duration::from_micros(1000)) {
                     Ok(_) => {
                         if toggle.load(Ordering::SeqCst) {
                             data_logger.load_on();
@@ -236,12 +233,12 @@ fn run_app<B: Backend>(
             }
         }
     };
-    let handle = builder
+    let _handle = builder
         .spawn(task)
         .expect("Error: creating data logging thread failed.");
     let mut current_dp = DataPoint::default();
     let mut data_buffer = Vec::with_capacity(256);
-    loop {
+    while running.load(Ordering::SeqCst) {
         current_dp = match tx.recv_timeout(Duration::from_micros(1000)) {
             Ok(v) => {
                 data_buffer.push(v);
@@ -249,39 +246,57 @@ fn run_app<B: Backend>(
             }
             Err(_e) => current_dp,
         };
-        terminal.draw(|f| ui(f, current_dp, data_buffer.clone().into(), load_switch))?;
-
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
-        if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if let KeyCode::Char('q') = key.code {
-                    running.store(false, Ordering::SeqCst);
-                    handle.join().unwrap();
-                    return Ok(());
-                }
-            }
-            if let Event::Mouse(mouse_event) = event::read()? {
-                if let MouseEventKind::Down(_) = mouse_event.kind {
-                    info!("Mouse down event.");
-                    if mouse_event.row == 1 && mouse_event.column <= 10 {
-                        if load_switch.is_on {
-                            toggle.store(false, Ordering::SeqCst);
-                            load_switch.is_on = false;
-                        } else {
-                            toggle.store(true, Ordering::SeqCst);
-                            load_switch.is_on = true;
+        terminal.draw(|f| {
+            ui(
+                f,
+                current_dp,
+                data_buffer.clone().into(),
+                Arc::clone(&load_switch),
+            )
+        })?;
+        let input_thread = {
+            let running = Arc::clone(&running);
+            let toggle = Arc::clone(&toggle);
+            let load_switch = Arc::clone(&load_switch);
+            let bg_tx = bg_tx_input.clone();
+            move || {
+                while running.load(Ordering::SeqCst) {
+                    match event::read().unwrap() {
+                        Event::Key(q) => {
+                            if let KeyCode::Char('q') = q.code {
+                                running.store(false, Ordering::SeqCst);
+                            }
                         }
-                        bg_tx.send(DataPoint::default()).unwrap();
+                        Event::Mouse(me) => {
+                            if let MouseEventKind::Down(_) = me.kind {
+                                if me.row == 1 && me.column <= 10 {
+                                    if load_switch.lock().unwrap().is_on {
+                                        toggle.store(false, Ordering::SeqCst);
+                                        load_switch.lock().unwrap().is_on = false;
+                                    } else {
+                                        toggle.store(true, Ordering::SeqCst);
+                                        load_switch.lock().unwrap().is_on = true;
+                                    }
+                                    bg_tx.send(DataPoint::default()).unwrap();
+                                }
+                            }
+                        }
+                        Event::FocusGained => {}
+                        Event::FocusLost => {}
+                        Event::Paste(_) => {}
+                        Event::Resize(_, _) => {}
                     }
                 }
             }
-        }
-        if last_tick.elapsed() >= tick_rate {
-            last_tick = Instant::now();
-        }
+        };
+        let input_builder = thread::Builder::new()
+            .name("input".into())
+            .stack_size(1024 * 1024); //1MB
+        let _handle = input_builder
+            .spawn(input_thread)
+            .expect("Error: creating input thread failed.");
     }
+    Ok(())
 }
 
 fn init_ui<B: Backend>(f: &mut Frame<B>, ports: Vec<String>, port_list_state: &mut ListState) {
@@ -309,7 +324,7 @@ fn ui<B: Backend>(
     f: &mut Frame<B>,
     datapoint: DataPoint,
     data_buffer: VecDeque<DataPoint>,
-    load_switch: LoadToggleSwitch,
+    load_switch: Arc<Mutex<LoadToggleSwitch>>,
 ) {
     let size = f.size();
     let block = Block::default()
@@ -328,27 +343,27 @@ fn ui<B: Backend>(
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(chunks[0]);
-    let load = if datapoint.get_load_onoff() > 0.0 {
-        "On"
-    } else {
+    let load = if datapoint.get_load_onoff() < 1.0 {
         "Off"
+    } else {
+        "On"
     };
     let load_current = datapoint.get_load_current().to_string();
     let battery_voltage = datapoint.get_battery_voltage().to_string();
     let battery_temp = datapoint.get_battery_temp().to_string();
     let pv_voltage = datapoint.get_pv_voltage().to_string();
-    let charging = if datapoint.get_charging() > 0.0 {
-        "Yes"
-    } else {
+    let charging = if datapoint.get_charging() < 1.0 {
         "No"
+    } else {
+        "Yes"
     };
     let charge_current = datapoint.get_charge_current().to_string();
     let over_discharge = datapoint.get_over_discharge().to_string();
     let battery_max = datapoint.get_battery_max().to_string();
-    let battery_full = if datapoint.get_battery_full() > 0.0 {
-        "Yes"
-    } else {
+    let battery_full = if datapoint.get_battery_full() < 1.0 {
         "No"
+    } else {
+        "Yes"
     };
     let time = datapoint.get_time_formatted();
     let table = Table::new(vec![
@@ -435,5 +450,6 @@ fn ui<B: Backend>(
     .y_axis(y_axis);
     f.render_widget(chart, top_chunks[1]);
     let area = Rect::new(size.x, size.y, 10, 2);
-    f.render_widget(load_switch, area);
+    let button = load_switch.lock().unwrap().clone();
+    f.render_widget(button, area);
 }
