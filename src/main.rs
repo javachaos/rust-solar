@@ -13,26 +13,34 @@ use datapoint::DataPoint;
 use serial_data_logger::SerialDatalogger;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::{
-    collections::VecDeque, error::Error, fs::File, io, sync::{
+    collections::VecDeque,
+    error::Error,
+    fs::File,
+    io,
+    sync::{
         atomic::{AtomicBool, Ordering},
         mpsc, Arc,
-    }, thread::{self, sleep}, time::{Duration, Instant}
+    },
+    thread::{self, sleep},
+    time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout}, 
+    buffer::Buffer,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols::Marker,
-    widgets::{Axis, Block, BorderType, Borders, Cell,
-        Chart, Dataset, GraphType, List, ListItem,
-        ListState, Row, Table},
-    Frame,
-    Terminal
+    symbols::{self, Marker},
+    text::{Span, Spans},
+    widgets::{
+        Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, List, ListItem,
+        ListState, Row, Table,
+    },
+    Frame, Terminal,
 };
 
 // These types were too long...
@@ -40,6 +48,56 @@ type TermType = Terminal<CrosstermBackend<std::io::Stdout>>;
 type TermResult = Result<Terminal<CrosstermBackend<std::io::Stdout>>, Box<dyn Error>>;
 
 const LOGFILE_PATH: &str = "solar-rust.log";
+
+/// A custom widget for a toggle switch.
+
+#[derive(Debug, Clone, Copy)]
+struct LoadToggleSwitch<'a> {
+    is_on: bool,
+    labels: (&'a str, &'a str),
+}
+
+impl<'a> LoadToggleSwitch<'a> {
+    pub fn new(is_on: bool, labels: (&'a str, &'a str)) -> LoadToggleSwitch<'a> {
+        LoadToggleSwitch { is_on, labels }
+    }
+}
+
+impl<'a> tui::widgets::Widget for LoadToggleSwitch<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let on_label = Span::styled(
+            self.labels.0,
+            Style::default().fg(if self.is_on {
+                Color::Green
+            } else {
+                Color::DarkGray
+            }),
+        );
+        let off_label = Span::styled(
+            self.labels.1,
+            Style::default().fg(if !self.is_on {
+                Color::Red
+            } else {
+                Color::DarkGray
+            }),
+        );
+
+        let switch = if self.is_on {
+            Span::styled(
+                symbols::line::VERTICAL,
+                Style::default().add_modifier(Modifier::BOLD),
+            )
+        } else {
+            Span::raw(" ")
+        };
+
+        let spans = Spans::from(vec![on_label, switch, off_label]);
+        let block = Block::default().borders(Borders::ALL).title("Load");
+        let inner_area = block.inner(area);
+        block.render(area, buf);
+        buf.set_spans(inner_area.x, inner_area.y, &spans, inner_area.width);
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
@@ -148,18 +206,33 @@ fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let (rx, tx) = mpsc::channel();
+    let (bg_tx, bg_rx) = mpsc::channel();
     let mut data_logger = SerialDatalogger::new(selected_port.to_string());
+    let initial_dp = data_logger.read_datapoint();
+    let mut load_switch = LoadToggleSwitch::new(initial_dp.get_load_onoff() > 0.0, ("ON", "OFF"));
+    let toggle = Arc::new(AtomicBool::new(load_switch.is_on));
     let running = Arc::new(AtomicBool::new(true));
     let builder = thread::Builder::new()
         .name("datalogger".into())
         .stack_size(1024 * 1024); //1MB
     let task = {
         let running = Arc::clone(&running);
+        let toggle = Arc::clone(&toggle);
         move || {
             while running.load(Ordering::SeqCst) {
                 let datapoint = data_logger.read_datapoint();
                 rx.send(datapoint).unwrap();
                 sleep(Duration::from_secs(1));
+                match bg_rx.recv_timeout(Duration::from_micros(1000)) {
+                    Ok(_) => {
+                        if toggle.load(Ordering::SeqCst) {
+                            data_logger.load_on();
+                        } else {
+                            data_logger.load_off();
+                        }
+                    }
+                    Err(_e) => {}
+                };
             }
         }
     };
@@ -173,10 +246,10 @@ fn run_app<B: Backend>(
             Ok(v) => {
                 data_buffer.push(v);
                 v
-            },
+            }
             Err(_e) => current_dp,
         };
-        terminal.draw(|f| ui(f, current_dp, data_buffer.clone().into()))?;
+        terminal.draw(|f| ui(f, current_dp, data_buffer.clone().into(), load_switch))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -187,6 +260,21 @@ fn run_app<B: Backend>(
                     running.store(false, Ordering::SeqCst);
                     handle.join().unwrap();
                     return Ok(());
+                }
+            }
+            if let Event::Mouse(mouse_event) = event::read()? {
+                if let MouseEventKind::Down(_) = mouse_event.kind {
+                    info!("Mouse down event.");
+                    if mouse_event.row == 1 && mouse_event.column <= 10 {
+                        if load_switch.is_on {
+                            toggle.store(false, Ordering::SeqCst);
+                            load_switch.is_on = false;
+                        } else {
+                            toggle.store(true, Ordering::SeqCst);
+                            load_switch.is_on = true;
+                        }
+                        bg_tx.send(DataPoint::default()).unwrap();
+                    }
                 }
             }
         }
@@ -217,7 +305,12 @@ fn init_ui<B: Backend>(f: &mut Frame<B>, ports: Vec<String>, port_list_state: &m
     f.render_stateful_widget(port_list, size, port_list_state);
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint, data_buffer: VecDeque<DataPoint>) {
+fn ui<B: Backend>(
+    f: &mut Frame<B>,
+    datapoint: DataPoint,
+    data_buffer: VecDeque<DataPoint>,
+    load_switch: LoadToggleSwitch,
+) {
     let size = f.size();
     let block = Block::default()
         .borders(Borders::ALL)
@@ -313,13 +406,14 @@ fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint, data_buffer: VecDeque<
     ])
     .column_spacing(1);
     f.render_widget(table, top_chunks[0]);
-    
+
     // Create the X axis and define its properties
     let x_axis = Axis::default()
         .title("Time (s)")
-        .style(Style::default()).bounds([0.0, 256.0])
+        .style(Style::default())
+        .bounds([0.0, 256.0])
         .labels(vec!["0.0".into(), "128.0".into(), "256.0".into()]);
-    
+
     // Create the Y axis and define its properties
     let y_axis = Axis::default()
         .title("Load Current (A)")
@@ -327,11 +421,19 @@ fn ui<B: Backend>(f: &mut Frame<B>, datapoint: DataPoint, data_buffer: VecDeque<
         .bounds([0.0, 100.0])
         .labels(vec!["0.0".into(), "50.0".into(), "100.0".into()]);
 
-    let load_current_buffer = data_buffer.iter().enumerate()
+    let load_current_buffer = data_buffer
+        .iter()
+        .enumerate()
         .map(|(i, f)| (i as f64, f.get_load_current()))
         .collect::<Vec<(f64, f64)>>();
-    let chart = Chart::new(vec![
-        Dataset::default().marker(Marker::Block).graph_type(GraphType::Scatter).data(load_current_buffer.as_slice())
-    ]).block(Block::default().title("Load Current vs Time")).x_axis(x_axis).y_axis(y_axis);
+    let chart = Chart::new(vec![Dataset::default()
+        .marker(Marker::Block)
+        .graph_type(GraphType::Scatter)
+        .data(load_current_buffer.as_slice())])
+    .block(Block::default().title("Load Current vs Time"))
+    .x_axis(x_axis)
+    .y_axis(y_axis);
     f.render_widget(chart, top_chunks[1]);
+    let area = Rect::new(size.x, size.y, 10, 2);
+    f.render_widget(load_switch, area);
 }

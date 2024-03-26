@@ -62,4 +62,17 @@ impl SerialDatalogger {
             }
         }
     }
+
+    ///Toggle the load on or off
+    pub(crate) fn load_on(&mut self) {
+        let x = self.port.write(b"LON\n").unwrap();
+        let _ = self.port.flush();
+        info!("Wrote {} bytes over serial.", x);
+    }
+
+    pub(crate) fn load_off(&mut self) {
+        let x = self.port.write(b"LOFF\n").unwrap();
+        let _ = self.port.flush();
+        info!("Wrote {} bytes over serial.", x);
+    }
 }
