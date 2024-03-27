@@ -17,7 +17,7 @@ chrono = "0.4.35"
 regex = "1.10.3"
 tui = "0.19"
 crossterm = "0.25"
-simplelog = "0.12.2"
+simplelog = { git = "https://github.com/Drakulix/simplelog.rs.git" }
 log = "*"
 
 [build-dependencies]

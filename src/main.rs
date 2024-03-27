@@ -1,15 +1,18 @@
 mod database;
 mod datapoint;
+mod load_toggle_switch;
 mod serial_data_logger;
 
 #[macro_use]
 extern crate log;
 extern crate simplelog;
 use simplelog::{
-    ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+    ColorChoice, CombinedLogger, Config, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
+    WriteLogger,
 };
 
 use datapoint::DataPoint;
+use load_toggle_switch::LoadToggleSwitch;
 use serial_data_logger::SerialDatalogger;
 
 use crossterm::{
@@ -31,11 +34,9 @@ use std::{
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    buffer::Buffer,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols::{self, Marker},
-    text::{Span, Spans},
+    symbols::Marker,
     widgets::{
         Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, List, ListItem,
         ListState, Row, Table,
@@ -48,56 +49,6 @@ type TermType = Terminal<CrosstermBackend<std::io::Stdout>>;
 type TermResult = Result<Terminal<CrosstermBackend<std::io::Stdout>>, Box<dyn Error>>;
 
 const LOGFILE_PATH: &str = "solar-rust.log";
-
-/// A custom widget for a toggle switch.
-
-#[derive(Debug, Clone)]
-struct LoadToggleSwitch<'a> {
-    is_on: bool,
-    labels: (&'a str, &'a str),
-}
-
-impl<'a> LoadToggleSwitch<'a> {
-    pub fn new(is_on: bool, labels: (&'a str, &'a str)) -> LoadToggleSwitch<'a> {
-        LoadToggleSwitch { is_on, labels }
-    }
-}
-
-impl<'a> tui::widgets::Widget for LoadToggleSwitch<'a> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let on_label = Span::styled(
-            self.labels.0,
-            Style::default().fg(if self.is_on {
-                Color::Green
-            } else {
-                Color::DarkGray
-            }),
-        );
-        let off_label = Span::styled(
-            self.labels.1,
-            Style::default().fg(if !self.is_on {
-                Color::Red
-            } else {
-                Color::DarkGray
-            }),
-        );
-
-        let switch = if self.is_on {
-            Span::styled(
-                symbols::line::VERTICAL,
-                Style::default().add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::raw(" ")
-        };
-
-        let spans = Spans::from(vec![on_label, switch, off_label]);
-        let block = Block::default().borders(Borders::ALL).title("Load");
-        let inner_area = block.inner(area);
-        block.render(area, buf);
-        buf.set_spans(inner_area.x, inner_area.y, &spans, inner_area.width);
-    }
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
@@ -141,6 +92,8 @@ fn cleanup_terminal(terminal: &mut TermType) -> Result<(), Box<dyn Error>> {
 }
 
 fn setup_logging() -> Result<(), Box<dyn Error>> {
+    let mut conf = ConfigBuilder::new();
+    //conf.set_line_ending(LineEnding::Crlf);
     CombinedLogger::init(vec![
         TermLogger::new(
             LevelFilter::Warn,
@@ -150,7 +103,7 @@ fn setup_logging() -> Result<(), Box<dyn Error>> {
         ),
         WriteLogger::new(
             LevelFilter::Info,
-            Config::default(),
+            conf.build(),
             File::create(LOGFILE_PATH).unwrap(),
         ),
     ])
@@ -171,9 +124,11 @@ fn display_ports<B: Backend>(
         if crossterm::event::poll(Duration::from_micros(100))? {
             if let Event::Key(key) = event::read()? {
                 if let KeyCode::Enter = key.code {
+                    info!("User selected: {}", port_list_state.selected().unwrap());
                     return Ok(());
                 }
                 if let KeyCode::Up = key.code {
+                    info!("User action: {:?}", key.code);
                     if let Some(selected) = port_list_state.selected() {
                         let num_ports = ports.len();
                         if selected > 0 {
@@ -184,6 +139,7 @@ fn display_ports<B: Backend>(
                     }
                 }
                 if let KeyCode::Down = key.code {
+                    info!("User action: {:?}", key.code);
                     if let Some(selected) = port_list_state.selected() {
                         let num_ports = ports.len();
                         if selected >= num_ports - 1 {
