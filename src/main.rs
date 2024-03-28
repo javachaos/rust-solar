@@ -191,6 +191,45 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         .expect("Error: creating data logging thread failed.");
     let mut current_dp = DataPoint::default();
     let mut data_buffer = Vec::with_capacity(256);
+    let input_thread = {
+        let running = Arc::clone(&running);
+        let load_switch = Arc::clone(&load_switch);
+        let bg_tx = bg_tx_input.clone();
+        move || {
+            while running.load(Ordering::SeqCst) {
+                match event::read().unwrap() {
+                    Event::Key(q) => {
+                        if let KeyCode::Char('q') = q.code {
+                            running.store(false, Ordering::SeqCst);
+                        }
+                    }
+                    Event::Mouse(me) => {
+                        if let MouseEventKind::Down(_) = me.kind {
+                            if me.row == 1 && me.column <= 10 {
+                                if load_switch.lock().unwrap().is_on {
+                                    load_switch.lock().unwrap().is_on = false;
+                                    bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
+                                } else {
+                                    load_switch.lock().unwrap().is_on = true;
+                                    bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
+                                }
+                            }
+                        }
+                    }
+                    Event::FocusGained => {}
+                    Event::FocusLost => {}
+                    Event::Paste(_) => {}
+                    Event::Resize(_, _) => {}
+                }
+            }
+        }
+    };
+    let input_builder = thread::Builder::new()
+        .name("input".into())
+        .stack_size(1024 * 1024); //1MB
+    let _handle = input_builder
+        .spawn(input_thread)
+        .expect("Error: creating input thread failed.");
     while running.load(Ordering::SeqCst) {
         current_dp = match tx.recv_timeout(Duration::from_micros(1000)) {
             Ok(v) => {
@@ -207,45 +246,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
                 Arc::clone(&load_switch),
             )
         })?;
-        let input_thread = {
-            let running = Arc::clone(&running);
-            let load_switch = Arc::clone(&load_switch);
-            let bg_tx = bg_tx_input.clone();
-            move || {
-                while running.load(Ordering::SeqCst) {
-                    match event::read().unwrap() {
-                        Event::Key(q) => {
-                            if let KeyCode::Char('q') = q.code {
-                                running.store(false, Ordering::SeqCst);
-                            }
-                        }
-                        Event::Mouse(me) => {
-                            if let MouseEventKind::Down(_) = me.kind {
-                                if me.row == 1 && me.column <= 10 {
-                                    if load_switch.lock().unwrap().is_on {
-                                        load_switch.lock().unwrap().is_on = false;
-                                        bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
-                                    } else {
-                                        load_switch.lock().unwrap().is_on = true;
-                                        bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
-                                    }
-                                }
-                            }
-                        }
-                        Event::FocusGained => {}
-                        Event::FocusLost => {}
-                        Event::Paste(_) => {}
-                        Event::Resize(_, _) => {}
-                    }
-                }
-            }
-        };
-        let input_builder = thread::Builder::new()
-            .name("input".into())
-            .stack_size(1024 * 1024); //1MB
-        let _handle = input_builder
-            .spawn(input_thread)
-            .expect("Error: creating input thread failed.");
     }
     Ok(())
 }
