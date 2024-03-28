@@ -11,7 +11,7 @@ pub(crate) struct SerialDatalogger {
 
 impl SerialDatalogger {
     const BAUD_RATE: u32 = 57600;
-    const SERIAL_TIMEOUT: u64 = 1000;
+    const SERIAL_TIMEOUT: u64 = 2000;
 
     pub(crate) fn get_comms() -> Vec<String> {
         let ports = serialport::available_ports().expect("Error reading ports.");

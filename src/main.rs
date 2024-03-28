@@ -44,7 +44,6 @@ use tui::{
     Frame, Terminal,
 };
 
-// These types were too long...
 type TermType = Terminal<CrosstermBackend<std::io::Stdout>>;
 type TermResult = Result<Terminal<CrosstermBackend<std::io::Stdout>>, Box<dyn Error>>;
 
@@ -163,22 +162,20 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         initial_dp.get_load_onoff() > 0.0,
         ("ON", "OFF"),
     )));
-    let toggle = Arc::new(AtomicBool::new(load_switch.lock().unwrap().is_on));
     let running = Arc::new(AtomicBool::new(true));
     let builder = thread::Builder::new()
         .name("datalogger".into())
         .stack_size(1024 * 1024); //1MB
     let task = {
         let running = Arc::clone(&running);
-        let toggle = Arc::clone(&toggle);
         move || {
             while running.load(Ordering::SeqCst) {
                 let datapoint = data_logger.read_datapoint();
                 rx.send(datapoint).unwrap();
                 sleep(Duration::from_secs(1));
                 match bg_rx_input.recv_timeout(Duration::from_micros(1000)) {
-                    Ok(_) => {
-                        if toggle.load(Ordering::SeqCst) {
+                    Ok(msg) => {
+                        if msg {
                             data_logger.load_on();
                         } else {
                             data_logger.load_off();
@@ -212,7 +209,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         })?;
         let input_thread = {
             let running = Arc::clone(&running);
-            let toggle = Arc::clone(&toggle);
             let load_switch = Arc::clone(&load_switch);
             let bg_tx = bg_tx_input.clone();
             move || {
@@ -227,13 +223,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
                             if let MouseEventKind::Down(_) = me.kind {
                                 if me.row == 1 && me.column <= 10 {
                                     if load_switch.lock().unwrap().is_on {
-                                        toggle.store(false, Ordering::SeqCst);
                                         load_switch.lock().unwrap().is_on = false;
+                                        bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
                                     } else {
-                                        toggle.store(true, Ordering::SeqCst);
                                         load_switch.lock().unwrap().is_on = true;
+                                        bg_tx.send(load_switch.lock().unwrap().is_on).unwrap();
                                     }
-                                    bg_tx.send(DataPoint::default()).unwrap();
                                 }
                             }
                         }
