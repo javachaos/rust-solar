@@ -157,6 +157,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
     let (rx, tx) = mpsc::channel();
     let (bg_tx_input, bg_rx_input) = mpsc::channel();
     let mut data_logger = SerialDatalogger::new(selected_port.to_string());
+    let _ = data_logger.read_serial_datapoint(); //throw away read to ensure device is ready
     let initial_dp = data_logger.read_datapoint();
     let load_switch = Arc::new(Mutex::new(LoadToggleSwitch::new(
         initial_dp.get_load_onoff() > 0.0,

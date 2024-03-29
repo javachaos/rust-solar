@@ -28,7 +28,7 @@ impl SerialDatalogger {
         }
     }
 
-    fn read_serial_datapoint(&mut self) -> Result<String, std::io::Error> {
+    pub(crate) fn read_serial_datapoint(&mut self) -> Result<String, std::io::Error> {
         let mut buf = Vec::new();
         let mut temp_buf = [0u8; 1]; // Temporary buffer to read one byte at a time
         loop {
@@ -65,14 +65,16 @@ impl SerialDatalogger {
 
     ///Toggle the load on or off
     pub(crate) fn load_on(&mut self) {
+        let _ = self.read_serial_datapoint();
         let x = self.port.write(b"LON\n").unwrap();
-        let _ = self.port.flush();
         info!("Wrote {} bytes over serial.", x);
+        let _ = self.port.flush();
     }
 
     pub(crate) fn load_off(&mut self) {
+        let _ = self.read_serial_datapoint();
         let x = self.port.write(b"LOFF\n").unwrap();
-        let _ = self.port.flush();
         info!("Wrote {} bytes over serial.", x);
+        let _ = self.port.flush();
     }
 }
