@@ -142,10 +142,10 @@ void printAllData()
     float load_current = randomDouble(0, 15);
     float over_discharge = randomDouble(0, 17);
     float battery_max = randomDouble(0, 19);
-    uint8_t full = randomDouble(0.0, 2.0); 
-    uint8_t charging = randomDouble(0.0, 2.0); 
+    uint8_t full = randomDouble(0.0, 2.0);
+    uint8_t charging = randomDouble(0.0, 2.0);
     int8_t battery_temp = randomDouble(-11.0, 30.0);
-    float charge_current = randomDouble(0.0, 30.0);  
+    float charge_current = randomDouble(0.0, 30.0);
     uint8_t load_onoff = led_state;
   #else
     float battery = to_float(buff, 9);
@@ -153,15 +153,23 @@ void printAllData()
     float load_current = to_float(buff, 15);
     float over_discharge = to_float(buff, 17);
     float battery_max = to_float(buff, 19);
-    uint8_t full = buff[27]; 
+    uint8_t full = buff[27];
     uint8_t charging = buff[28];
     int8_t battery_temp = buff[29] - 30;
-    float charge_current = to_float(buff, 30);  
+    float charge_current = to_float(buff, 30);
     uint8_t load_onoff = buff[21];
   #endif
   outString = 
-      String(battery) + sep + String(pv) + sep + String(load_current) + sep + String(over_discharge) + sep + String(battery_max)
-      + sep + String(full) + sep + String(charging) + sep + String(battery_temp) + sep + String(charge_current) + sep + String(load_onoff);
+      String(battery) + sep +
+      String(pv) + sep +
+      String(load_current) + sep +
+      String(over_discharge) + sep +
+      String(battery_max) + sep +
+      String(full) + sep +
+      String(charging) + sep +
+      String(battery_temp) + sep +
+      String(charge_current) + sep +
+      String(load_onoff);
   
   Serial.print(outString);
 }
