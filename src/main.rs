@@ -51,23 +51,38 @@ const LOGFILE_PATH: &str = "solar-rust.log";
 
 fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
+    info!("Application Start");
 
     let ports = SerialDatalogger::get_comms();
     let mut terminal = setup_terminal()?;
 
     let mut port_list_state = ListState::default();
     port_list_state.select(Some(0));
-    let _ = display_ports(&mut terminal, &ports, &mut port_list_state);
-    let selected_port = &ports[port_list_state.selected().unwrap()];
 
-    let res = run_app(&mut terminal, selected_port);
+    info!("Displaying serial ports.");
+    let should_continue = display_ports(&mut terminal, &ports, &mut port_list_state)?;
 
-    cleanup_terminal(&mut terminal)?;
-
-    if let Err(err) = res {
-        error!("{:?}", err);
+    if should_continue {
+        let port = match port_list_state.selected() {
+            Some(p) => p,
+            None => {
+                error!("Not a valid port.");
+                panic!("Not a valid port.")
+            }
+        };
+        let selected_port = &ports[port];
+        let res = run_app(&mut terminal, selected_port);
+        if let Err(err) = res {
+            error!("{:?}", err);
+        }
     }
 
+    info!("Cleaning up Terminal.");
+    let err = cleanup_terminal(&mut terminal);
+    if let Err(err) = err {
+        error!("{:?}", err);
+    }
+    info!("Application End");
     Ok(())
 }
 
@@ -113,7 +128,7 @@ fn display_ports<B: Backend>(
     terminal: &mut Terminal<B>,
     ports: &[String],
     port_list_state: &mut ListState,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     for (i, p) in ports.iter().enumerate() {
         info!("{i}: {p:?}");
     }
@@ -124,7 +139,10 @@ fn display_ports<B: Backend>(
             if let Event::Key(key) = event::read()? {
                 if let KeyCode::Enter = key.code {
                     info!("User selected: {}", port_list_state.selected().unwrap());
-                    return Ok(());
+                    return Ok(true);
+                }
+                if let KeyCode::Char('q') = key.code {
+                    return Ok(false);
                 }
                 if let KeyCode::Up = key.code {
                     info!("User action: {:?}", key.code);
@@ -263,7 +281,8 @@ fn init_ui<B: Backend>(f: &mut Frame<B>, ports: Vec<String>, port_list_state: &m
     let port_list = List::new(port_items)
         .block(
             Block::default()
-                .title("Port Selection")
+                .title("Port Selection (q to exit)")
+                .title_alignment(Alignment::Center)
                 .borders(Borders::ALL),
         )
         .style(Style::default().fg(Color::White))

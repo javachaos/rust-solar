@@ -21,4 +21,5 @@ simplelog = { git = "https://github.com/Drakulix/simplelog.rs.git" }
 log = "*"
 
 [build-dependencies]
-winres = "0.1.12"
+#winres = "0.1.12"
+winresource = "0.1.17"
