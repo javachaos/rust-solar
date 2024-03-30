@@ -23,3 +23,5 @@ log = "*"
 [build-dependencies]
 #winres = "0.1.12"
 winresource = "0.1.17"
+[imports.google]
+url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"
