@@ -18,10 +18,11 @@ use serial_data_logger::SerialDatalogger;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+    },
 };
 use std::{
-    collections::VecDeque,
     error::Error,
     fs::File,
     io,
@@ -36,11 +37,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols::Marker,
-    widgets::{
-        Axis, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType, List, ListItem,
-        ListState, Row, Table,
-    },
+    widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Row, Table},
     Frame, Terminal,
 };
 
@@ -48,6 +45,7 @@ type TermType = Terminal<CrosstermBackend<std::io::Stdout>>;
 type TermResult = Result<Terminal<CrosstermBackend<std::io::Stdout>>, Box<dyn Error>>;
 
 const LOGFILE_PATH: &str = "solar-rust.log";
+const APP_NAME: &str = "Solar Tracer";
 
 fn main() -> Result<(), Box<dyn Error>> {
     setup_logging()?;
@@ -89,7 +87,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn setup_terminal() -> TermResult {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        SetTitle(APP_NAME),
+    )?;
     let backend = CrosstermBackend::new(stdout);
     Terminal::new(backend).map_err(std::convert::Into::into)
 }
@@ -209,7 +212,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         .spawn(task)
         .expect("Error: creating data logging thread failed.");
     let mut current_dp = DataPoint::default();
-    let mut data_buffer = Vec::with_capacity(256);
     let input_thread = {
         let running = Arc::clone(&running);
         let load_switch = Arc::clone(&load_switch);
@@ -251,20 +253,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         .expect("Error: creating input thread failed.");
     while running.load(Ordering::SeqCst) {
         current_dp = match tx.recv_timeout(Duration::from_micros(1000)) {
-            Ok(v) => {
-                data_buffer.push(v);
-                v
-            }
+            Ok(v) => v,
             Err(_e) => current_dp,
         };
-        terminal.draw(|f| {
-            ui(
-                f,
-                current_dp,
-                data_buffer.clone().into(),
-                Arc::clone(&load_switch),
-            )
-        })?;
+        terminal.draw(|f| ui(f, current_dp, Arc::clone(&load_switch)))?;
     }
     Ok(())
 }
@@ -294,25 +286,24 @@ fn init_ui<B: Backend>(f: &mut Frame<B>, ports: Vec<String>, port_list_state: &m
 fn ui<B: Backend>(
     f: &mut Frame<B>,
     datapoint: DataPoint,
-    data_buffer: VecDeque<DataPoint>,
     load_switch: Arc<Mutex<LoadToggleSwitch>>,
 ) {
     let size = f.size();
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Solar Tracer, q to quit")
+        .title(format!("{}{}", APP_NAME, ", q to quit"))
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Rounded);
     f.render_widget(block, size);
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(4)
-        .constraints([Constraint::Percentage(100), Constraint::Percentage(50)].as_ref())
+        .constraints([Constraint::Percentage(100), Constraint::Percentage(100)].as_ref())
         .split(f.size());
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .constraints([Constraint::Percentage(100), Constraint::Percentage(100)].as_ref())
         .split(chunks[0]);
     let load = if datapoint.get_load_onoff() < 1.0 {
         "Off"
@@ -392,34 +383,6 @@ fn ui<B: Backend>(
     ])
     .column_spacing(1);
     f.render_widget(table, top_chunks[0]);
-
-    // Create the X axis and define its properties
-    let x_axis = Axis::default()
-        .title("Time (s)")
-        .style(Style::default())
-        .bounds([0.0, 256.0])
-        .labels(vec!["0.0".into(), "128.0".into(), "256.0".into()]);
-
-    // Create the Y axis and define its properties
-    let y_axis = Axis::default()
-        .title("Load Current (A)")
-        .style(Style::default())
-        .bounds([0.0, 100.0])
-        .labels(vec!["0.0".into(), "50.0".into(), "100.0".into()]);
-
-    let load_current_buffer = data_buffer
-        .iter()
-        .enumerate()
-        .map(|(i, f)| (i as f64, f.get_load_current()))
-        .collect::<Vec<(f64, f64)>>();
-    let chart = Chart::new(vec![Dataset::default()
-        .marker(Marker::Block)
-        .graph_type(GraphType::Scatter)
-        .data(load_current_buffer.as_slice())])
-    .block(Block::default().title("Load Current vs Time"))
-    .x_axis(x_axis)
-    .y_axis(y_axis);
-    f.render_widget(chart, top_chunks[1]);
     let area = Rect::new(size.x, size.y, 10, 2);
     let button = load_switch.lock().unwrap().clone();
     f.render_widget(button, area);
