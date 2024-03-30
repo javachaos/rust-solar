@@ -5,7 +5,6 @@ use {
 
 fn main() -> io::Result<()> {
     WindowsResource::new()
-        // This path can be absolute, or relative to your crate root.
         .set_icon("assets/application.ico")
         .set_version_info(
             winresource::VersionInfo::PRODUCTVERSION,
