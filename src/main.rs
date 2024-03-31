@@ -113,7 +113,7 @@ fn setup_logging() -> Result<(), Box<dyn Error>> {
     //conf.set_line_ending(LineEnding::Crlf);
     CombinedLogger::init(vec![
         TermLogger::new(
-            LevelFilter::Warn,
+            LevelFilter::Error,
             Config::default(),
             TerminalMode::Mixed,
             ColorChoice::Auto,
@@ -211,7 +211,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
                 };
                 match rx.send(datapoint) {
                     Ok(_) => {}
-                    Err(e) => error!("{}", e),
+                    Err(e) => warn!("{}", e),
                 }
                 sleep(Duration::from_secs(1));
                 match bg_rx_input.recv_timeout(Duration::from_micros(1000)) {

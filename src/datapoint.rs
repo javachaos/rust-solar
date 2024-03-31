@@ -52,7 +52,7 @@ impl Default for DataPoint {
                 .try_into()
                 .expect("Unable to convert u64 to i64");
         } else {
-            error!("WARNING: SystemTime is before UNIX EPOCH!");
+            warn!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {
             timestamp,
@@ -80,7 +80,7 @@ impl DataPoint {
                 .try_into()
                 .expect("Unable to convert u64 to i64");
         } else {
-            error!("WARNING: SystemTime is before UNIX EPOCH!");
+            warn!("WARNING: SystemTime is before UNIX EPOCH!");
         }
         Self {
             timestamp,

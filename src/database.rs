@@ -80,7 +80,7 @@ impl Database {
     fn insert_datapoints(&mut self, datapoints: Vec<DataPoint>) {
         let trans = match self.connection.transaction() {
             Ok(t) => t,
-            Err(e) => return error!("{}", e),
+            Err(e) => return warn!("{}", e),
         };
         let num_data = datapoints.len();
         for dp in datapoints {
@@ -101,14 +101,14 @@ impl Database {
                 ),
             ) {
                 Ok(_) => {}
-                Err(e) => error!("{}", e),
+                Err(e) => warn!("{}", e),
             }
         }
         match trans.commit() {
             Ok(()) => {
                 info!("Wrote {} datapoints to database.", num_data);
             }
-            Err(e) => error!("{}", e),
+            Err(e) => warn!("{}", e),
         }
     }
 }

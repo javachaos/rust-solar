@@ -40,6 +40,6 @@ RUN curl https://sh.rustup.rs --tlsv1.3 -sSf | sh -s -- -y \
     && rustup component add clippy \
     && rustup component add clippy --toolchain nightly \
     && rustup target add i686-pc-windows-gnu \
-    && git config --global core.editor 'vi'
+    && git config --global core.editor 'vim'
 
 ENV PATH="/home/${USERNAME}/.cargo/bin:$PATH"

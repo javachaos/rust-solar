@@ -32,11 +32,14 @@ impl SerialDatalogger {
                     };
                 }
                 Err(ref e) if e.kind() == serialport::ErrorKind::NoDevice => {
-                    info!("{}", e);
+                    warn!("{}", e);
                     std::thread::sleep(Duration::from_secs(1));
                     // Retry opening the port
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => {
+                    error!("{}", e);
+                    panic!("{}", e)
+                }
             }
         }
     }
@@ -70,7 +73,7 @@ impl SerialDatalogger {
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => self.read_datapoint(),
             Err(e) => {
-                info!("Error: {} Kind {}.", e, e.kind());
+                warn!("{}", e);
                 Err(e)
             }
         }
@@ -80,7 +83,7 @@ impl SerialDatalogger {
         let x = match self.port.write(data.as_bytes()) {
             Ok(p) => p,
             Err(e) => {
-                error!("{}", e);
+                warn!("{}", e);
                 0
             }
         };
