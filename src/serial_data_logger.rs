@@ -7,7 +7,6 @@ use std::time::Duration;
 pub(crate) struct SerialDatalogger {
     database: Database,
     port: Box<dyn SerialPort>,
-    port_name: String,
 }
 
 impl SerialDatalogger {
@@ -20,19 +19,25 @@ impl SerialDatalogger {
     }
 
     pub(crate) fn new(port_name: String) -> Self {
-        let name_copy = port_name.clone();
-        Self {
-            database: Database::default(),
-            port: {
-                match serialport::new(port_name, Self::BAUD_RATE)
-                    .timeout(Duration::from_millis(Self::SERIAL_TIMEOUT))
-                    .open()
-                {
-                    Ok(p) => p,
-                    Err(e) => panic!("Error: {}", e),
+        loop {
+            match serialport::new(port_name.clone(), Self::BAUD_RATE)
+                .timeout(Duration::from_millis(Self::SERIAL_TIMEOUT))
+                .open()
+            {
+                Ok(p) => {
+                    // Successfully opened the serial port
+                    return Self {
+                        database: Database::default(),
+                        port: p,
+                    };
                 }
-            },
-            port_name: name_copy,
+                Err(ref e) if e.kind() == serialport::ErrorKind::NoDevice => {
+                    info!("{}", e);
+                    std::thread::sleep(Duration::from_secs(1));
+                    // Retry opening the port
+                }
+                Err(e) => panic!("{}", e),
+            }
         }
     }
 
@@ -56,17 +61,17 @@ impl SerialDatalogger {
             .to_string())
     }
 
-    pub(crate) fn read_datapoint(&mut self) -> DataPoint {
+    pub(crate) fn read_datapoint(&mut self) -> Result<DataPoint, std::io::Error> {
         match self.read_serial_datapoint() {
             Ok(data) => {
                 let dp = DataPoint::from_str(data.as_str());
                 self.database.add_datapoint(dp);
-                dp
+                Ok(dp)
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => self.read_datapoint(),
             Err(e) => {
-                error!("Error: {} Kind {}.", e, e.kind());
-                DataPoint::default()
+                info!("Error: {} Kind {}.", e, e.kind());
+                Err(e)
             }
         }
     }

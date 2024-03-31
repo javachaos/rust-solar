@@ -179,7 +179,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
     let (bg_tx_input, bg_rx_input) = mpsc::channel();
     let mut data_logger = SerialDatalogger::new(selected_port.to_string());
     let _ = data_logger.read_serial_datapoint(); //throw away read to ensure device is ready
-    let initial_dp = data_logger.read_datapoint();
+    let initial_dp = data_logger.read_datapoint()?;
     let load_switch = Arc::new(Mutex::new(LoadToggleSwitch::new(
         initial_dp.get_load_onoff() > 0.0,
         ("ON", "OFF"),
@@ -189,10 +189,26 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         .name("datalogger".into())
         .stack_size(1024 * 1024); //1MB
     let task = {
+        let mut error_count: u64 = 0;
         let running = Arc::clone(&running);
+        let selected_port_copy = String::from(selected_port);
         move || {
             while running.load(Ordering::SeqCst) {
-                let datapoint = data_logger.read_datapoint();
+                let datapoint = match data_logger.read_datapoint() {
+                    Ok(d) => d,
+                    Err(_e) => {
+                        error_count += 1;
+                        if error_count >= 5 {
+                            error_count = 0;
+                            info!(
+                                "Failed to read 5 datapoints, attempting to reconnect in 1 second."
+                            );
+                            std::thread::sleep(Duration::from_secs(1));
+                            data_logger = SerialDatalogger::new(selected_port_copy.clone());
+                        }
+                        DataPoint::default()
+                    }
+                };
                 match rx.send(datapoint) {
                     Ok(_) => {}
                     Err(e) => error!("{}", e),
