@@ -30,5 +30,13 @@ RUN groupadd --gid $USER_GID $USERNAME \
 
 # [Optional] Set the default user. Omit if you want to keep the default as root.
 USER $USERNAME
-RUN bash ./setup.sh
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y \
+    && . "$HOME/.cargo/env" \
+    && rustup install nightly \
+    && rustup component add rustfmt \
+    && rustup component add rustfmt --toolchain nightly \
+    && rustup component add clippy \
+    && rustup component add clippy --toolchain nightly \
+    && rustup target add i686-pc-windows-gnu
+
 ENV PATH="/home/${USERNAME}/.cargo/bin:$PATH"
