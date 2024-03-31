@@ -21,20 +21,24 @@ impl SerialDatalogger {
     pub(crate) fn new(port_name: String) -> Self {
         Self {
             database: Database::default(),
-            port: serialport::new(port_name, Self::BAUD_RATE)
-                .timeout(Duration::from_millis(Self::SERIAL_TIMEOUT))
-                .open()
-                .unwrap(),
+            port: {
+                match serialport::new(port_name, Self::BAUD_RATE)
+                    .timeout(Duration::from_millis(Self::SERIAL_TIMEOUT))
+                    .open()
+                {
+                    Ok(p) => p,
+                    Err(e) => panic!("Error: {}", e),
+                }
+            },
         }
     }
 
     pub(crate) fn read_serial_datapoint(&mut self) -> Result<String, std::io::Error> {
         let mut buf = Vec::new();
-        let mut temp_buf = [0u8; 1]; // Temporary buffer to read one byte at a time
+        let mut temp_buf = [0u8; 1];
         loop {
             let bytes_read = self.port.read(&mut temp_buf)?;
             if bytes_read == 0 {
-                // No more bytes available to read
                 break;
             }
             buf.push(temp_buf[0]);
@@ -63,17 +67,28 @@ impl SerialDatalogger {
         }
     }
 
+    fn write(&mut self, data: &str) -> usize {
+        let x = match self.port.write(data.as_bytes()) {
+            Ok(p) => p,
+            Err(e) => {
+                error!("{}", e);
+                0
+            }
+        };
+        x
+    }
+
     ///Toggle the load on or off
     pub(crate) fn load_on(&mut self) {
         let _ = self.read_serial_datapoint();
-        let x = self.port.write(b"LON\n").unwrap();
+        let x = self.write("LON\n");
         info!("Wrote {} bytes over serial.", x);
         let _ = self.port.flush();
     }
 
     pub(crate) fn load_off(&mut self) {
         let _ = self.read_serial_datapoint();
-        let x = self.port.write(b"LOFF\n").unwrap();
+        let x = self.write("LOFF\n");
         info!("Wrote {} bytes over serial.", x);
         let _ = self.port.flush();
     }
