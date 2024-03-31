@@ -78,7 +78,10 @@ impl Database {
     /// Insert a vector of datapoints into the database in one atomic operation.
     ///
     fn insert_datapoints(&mut self, datapoints: Vec<DataPoint>) {
-        let trans = self.connection.transaction().unwrap();
+        let trans = match self.connection.transaction() {
+            Ok(t) => t,
+            Err(e) => return error!("{}", e),
+        };
         let num_data = datapoints.len();
         for dp in datapoints {
             match trans.execute(

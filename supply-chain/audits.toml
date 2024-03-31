@@ -1,4 +1,8 @@
 
 # cargo-vet audits file
 
-[audits]
+[[audits.syn]]
+who = "Alfred <alfred_e@outlook.com>"
+criteria = "safe-to-deploy"
+delta = "2.0.55 -> 2.0.57"
+notes = "Code changes do not make any changes outside of toml, readme and doc."

@@ -26,6 +26,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
         gcc-mingw-w64-base \
         gcc-mingw-w64-i686-win32-runtime \
         gcc-mingw-w64-i686 \
+        vim \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
@@ -38,6 +39,7 @@ RUN curl https://sh.rustup.rs --tlsv1.3 -sSf | sh -s -- -y \
     && rustup component add rustfmt --toolchain nightly \
     && rustup component add clippy \
     && rustup component add clippy --toolchain nightly \
-    && rustup target add i686-pc-windows-gnu
+    && rustup target add i686-pc-windows-gnu \
+    && git config --global core.editor 'vi'
 
 ENV PATH="/home/${USERNAME}/.cargo/bin:$PATH"

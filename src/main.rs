@@ -193,7 +193,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         move || {
             while running.load(Ordering::SeqCst) {
                 let datapoint = data_logger.read_datapoint();
-                rx.send(datapoint).unwrap();
+                match rx.send(datapoint) {
+                    Ok(_) => {}
+                    Err(e) => error!("{}", e),
+                }
                 sleep(Duration::from_secs(1));
                 match bg_rx_input.recv_timeout(Duration::from_micros(1000)) {
                     Ok(msg) => {
