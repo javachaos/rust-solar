@@ -1,0 +1,11 @@
+{
+	"name": "rust-solar-codespace",
+	"extensions": [
+		"GitHub.vscode-github-actions",
+		"rust-lang.rust-analyzer"
+	],
+	"dockerFile": "Dockerfile",
+	"settings": {
+		"editor.formatOnSave": true
+	}
+}
