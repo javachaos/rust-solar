@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::DateTime;
 use regex::Regex;
 
+const DATA_POINT_REGEX: &str = r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})";
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct DataPoint {
     timestamp: i64,
@@ -96,7 +98,7 @@ impl DataPoint {
     }
 
     pub(crate) fn from_str(data_str: &str) -> Self {
-        let regx = Regex::new(r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})").unwrap();
+        let regx = Regex::new(DATA_POINT_REGEX).unwrap();
         let Some(_caps) = regx.captures(data_str) else {
             panic!("Invalid DataPoint syntax.")
         };
