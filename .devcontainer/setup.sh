@@ -1,17 +1,6 @@
 #!/bin/bash
-## update and install some things we should probably have
-apt-get update
-apt-get install -y \
-  curl \
-  git \
-  gnupg2 \
-  build-essential \
-  openssl \
-  pkg-config \
-  libudev-dev
 
-
-## Install rustup and common components
+## Install rustup and common components as non-root
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 rustup install nightly
