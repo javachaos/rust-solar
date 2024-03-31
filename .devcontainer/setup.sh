@@ -5,12 +5,11 @@ apt-get install -y \
   curl \
   git \
   gnupg2 \
-  jq \
-  sudo \
-  zsh \
-  vim \
   build-essential \
-  openssl
+  openssl \
+  pkg-config \
+  libudev-dev
+
 
 ## Install rustup and common components
 curl https://sh.rustup.rs -sSf | sh -s -- -y
