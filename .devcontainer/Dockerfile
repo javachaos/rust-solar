@@ -22,6 +22,9 @@ RUN groupadd --gid $USER_GID $USERNAME \
         openssl \
         pkg-config \
         libudev-dev \
+        gcc-mingw-w64-base \
+        gcc-mingw-w64-i686-win32-runtime \
+        gcc-mingw-w64-i686 \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 

@@ -25,3 +25,7 @@ log = "*"
 winresource = "0.1.17"
 [imports.google]
 url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"
+[package.metadata.winresource]
+OriginalFilename = "rust-solar.exe"
+FileDescription = "A simple solar tracer application written in Rust."
+LegalCopyright = "Copyright © 2024"
