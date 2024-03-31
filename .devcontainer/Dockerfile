@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM debian:latest
 
 WORKDIR /home/
 
@@ -15,6 +15,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
     # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
     && apt-get update \
     && apt-get install -y sudo \
+        ca-certificates \
         curl \
         git \
         gnupg2 \
@@ -30,7 +31,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
 
 # [Optional] Set the default user. Omit if you want to keep the default as root.
 USER $USERNAME
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y \
+RUN curl https://sh.rustup.rs --tlsv1.3 -sSf | sh -s -- -y \
     && . "$HOME/.cargo/env" \
     && rustup install nightly \
     && rustup component add rustfmt \
