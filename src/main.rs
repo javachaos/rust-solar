@@ -255,7 +255,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &String) -> io
         .spawn(input_thread)
         .expect("Error: creating input thread failed.");
     while running.load(Ordering::SeqCst) {
-        current_dp = match tx.recv_timeout(Duration::from_micros(1000)) {
+        current_dp = match tx.recv_timeout(Duration::from_millis(25)) {
             Ok(v) => v,
             Err(_e) => current_dp,
         };

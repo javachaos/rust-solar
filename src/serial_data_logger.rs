@@ -7,6 +7,7 @@ use std::time::Duration;
 pub(crate) struct SerialDatalogger {
     database: Database,
     port: Box<dyn SerialPort>,
+    port_name: String,
 }
 
 impl SerialDatalogger {
@@ -19,6 +20,7 @@ impl SerialDatalogger {
     }
 
     pub(crate) fn new(port_name: String) -> Self {
+        let name_copy = port_name.clone();
         Self {
             database: Database::default(),
             port: {
@@ -30,6 +32,7 @@ impl SerialDatalogger {
                     Err(e) => panic!("Error: {}", e),
                 }
             },
+            port_name: name_copy,
         }
     }
 
@@ -60,8 +63,9 @@ impl SerialDatalogger {
                 self.database.add_datapoint(dp);
                 dp
             }
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => self.read_datapoint(),
             Err(e) => {
-                error!("Error: {}.", e);
+                error!("Error: {} Kind {}.", e, e.kind());
                 DataPoint::default()
             }
         }
