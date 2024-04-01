@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::DateTime;
+use chrono::{DateTime, TimeZone};
 use regex::Regex;
 
 const DATA_POINT_REGEX: &str = r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})";
@@ -115,7 +115,10 @@ impl DataPoint {
 
     pub(crate) fn get_time_formatted(&self) -> String {
         let date = DateTime::from_timestamp(self.timestamp, 0).unwrap();
-        date.to_rfc2822()
+        let binding = chrono::Local::now();
+        let tz = binding.offset();
+        let tzdate = date.with_timezone(tz);
+        tzdate.to_rfc2822()
     }
 
     pub(crate) fn get_battery_voltage(&self) -> f64 {
