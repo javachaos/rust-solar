@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::{DateTime, TimeZone};
+use chrono::DateTime;
 use regex::Regex;
 
 const DATA_POINT_REGEX: &str = r"(([+-]?(\d*[.])?\d+):){9}(\d{1,19})";

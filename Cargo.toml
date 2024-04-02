@@ -21,11 +21,12 @@ simplelog = { git = "https://github.com/Drakulix/simplelog.rs.git" }
 log = "*"
 
 [build-dependencies]
-#winres = "0.1.12"
 winresource = "0.1.17"
-[imports.google]
-url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"
+
 [package.metadata.winresource]
 OriginalFilename = "rust-solar.exe"
 FileDescription = "A simple solar tracer application written in Rust."
 LegalCopyright = "Copyright © 2024"
+
+[imports.google]
+url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"

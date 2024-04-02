@@ -1,4 +1,4 @@
-FROM debian:latest
+FROM ubuntu:latest
 
 WORKDIR /home/
 
@@ -18,9 +18,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
         ca-certificates \
         curl \
         git \
-        gnupg2 \
         build-essential \
-        openssl \
         pkg-config \
         libudev-dev \
         gcc-mingw-w64-base \
@@ -40,6 +38,7 @@ RUN curl https://sh.rustup.rs --tlsv1.3 -sSf | sh -s -- -y \
     && rustup component add clippy \
     && rustup component add clippy --toolchain nightly \
     && rustup target add i686-pc-windows-gnu \
+    && rustup target add i686-unknown-linux-gnu \
     && git config --global core.editor 'vim'
 
 ENV PATH="/home/${USERNAME}/.cargo/bin:$PATH"
