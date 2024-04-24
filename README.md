@@ -11,3 +11,5 @@ cargo run
  - Once the app is running, you can use the mouse to click LOAD on or off.
  - The display will update once per second.
  - To quit press q.
+# Screenshot
+![.](https://github.com/javachaos/rust-solar/blob/main/assets/screenshot.png)
