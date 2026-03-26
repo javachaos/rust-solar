@@ -259,6 +259,7 @@ mod tests {
             .expect("count should succeed");
 
         assert_eq!(row_count, 1);
+        drop(connection);
         fs::remove_file(path).expect("temporary database should be removable");
     }
 

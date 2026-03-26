@@ -1030,6 +1030,8 @@ mod tests {
         assert!(load_state.load(Ordering::SeqCst));
         assert!(current.is_load_enabled());
 
+        drop(connection);
+        drop(database);
         fs::remove_file(path).expect("temporary database should be removable");
     }
 

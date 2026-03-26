@@ -190,10 +190,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        io::{self, Cursor, Read, Result as IoResult, Write},
-        sync::Mutex,
-    };
+    use std::io::{self, Cursor, Read, Result as IoResult, Write};
+
+    #[cfg(unix)]
+    use std::sync::Mutex;
 
     #[cfg(unix)]
     use std::time::Duration;
