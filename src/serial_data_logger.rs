@@ -345,9 +345,38 @@ mod tests {
         ));
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     #[test]
-    fn connect_pty_opens_the_harness_and_connect_reports_plain_serial_failures() {
+    fn connect_pty_and_plain_connect_both_open_linux_ptys() {
+        let _guard = SERIAL_TEST_LOCK
+            .lock()
+            .expect("serial test lock should be available");
+        let harness = PtyControllerHarness::spawn_with_interval(Duration::from_millis(25))
+            .expect("harness should spawn");
+
+        let mut tty_logger = SerialDatalogger::connect_pty(harness.slave_path())
+            .expect("pty connection should open");
+        tty_logger.prime().expect("pty logger should prime");
+        let tty_datapoint = tty_logger
+            .read_datapoint()
+            .expect("pty logger should read datapoints");
+        assert!(!tty_datapoint.is_load_enabled());
+        drop(tty_logger);
+
+        let mut serial_logger =
+            SerialDatalogger::connect(harness.slave_path()).expect("plain serial open should work");
+        serial_logger
+            .prime()
+            .expect("plain serial logger should prime on linux PTYs");
+        let serial_datapoint = serial_logger
+            .read_datapoint()
+            .expect("plain serial logger should read datapoints");
+        assert!(!serial_datapoint.is_load_enabled());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn connect_pty_opens_the_harness_and_plain_connect_rejects_macos_ptys() {
         let _guard = SERIAL_TEST_LOCK
             .lock()
             .expect("serial test lock should be available");
@@ -365,6 +394,15 @@ mod tests {
 
         assert!(matches!(
             SerialDatalogger::connect(harness.slave_path()),
+            Err(ControllerError::Serial(_))
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_uses_plain_serial_connect_and_reports_missing_ports() {
+        assert!(matches!(
+            SerialDatalogger::connect("definitely-not-a-real-serial-port"),
             Err(ControllerError::Serial(_))
         ));
     }
