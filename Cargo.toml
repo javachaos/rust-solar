@@ -14,11 +14,10 @@ edition = "2021"
 rusqlite = { version = "0.31.0", features = ["bundled"] }
 serialport = "4.3.0"
 chrono = "0.4.35"
-regex = "1.10.3"
 tui = "0.19"
 crossterm = "0.25"
-simplelog = { git = "https://github.com/Drakulix/simplelog.rs.git" }
-log = "*"
+simplelog = "0.12"
+log = "0.4"
 
 [build-dependencies]
 winresource = "0.1.17"
@@ -27,6 +26,3 @@ winresource = "0.1.17"
 OriginalFilename = "rust-solar.exe"
 FileDescription = "A simple solar tracer application written in Rust."
 LegalCopyright = "Copyright © 2024"
-
-[imports.google]
-url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"

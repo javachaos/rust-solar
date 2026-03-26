@@ -4,6 +4,9 @@
 [cargo-vet]
 version = "0.9"
 
+[imports.google]
+url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"
+
 [policy.simplelog]
 audit-as-crates-io = true
 
