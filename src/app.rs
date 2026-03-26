@@ -70,9 +70,11 @@ use simplelog::{
 #[cfg(not(test))]
 use crate::{
     controller_simulator::{SimulatedSerialTransport, SIMULATOR_PORT_NAME},
-    pty_controller_harness::PTY_PORT_PREFIX,
     serial_data_logger::SerialDatalogger,
 };
+
+#[cfg(all(not(test), unix))]
+use crate::pty_controller_harness::PTY_PORT_PREFIX;
 
 /// Result type used by the app runtime and exported from the crate root.
 pub type AppResult<T> = Result<T, Box<dyn Error>>;
@@ -318,18 +320,21 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, selected_port: &str) -> AppRe
 /// Supported modes are:
 ///
 /// - the in-process simulator listed in the UI
-/// - Unix PTY-backed simulator ports prefixed with [`PTY_PORT_PREFIX`]
+/// - Unix PTY-backed simulator ports prefixed with `pty:`
 /// - real serial devices opened through `serialport`
 fn create_controller(selected_port: &str) -> Result<Box<dyn MpptController>, ControllerError> {
     if selected_port == SIMULATOR_PORT_NAME {
-        Ok(Box::new(SerialDatalogger::from_port(
+        return Ok(Box::new(SerialDatalogger::from_port(
             SimulatedSerialTransport::default(),
-        )))
-    } else if let Some(port_name) = selected_port.strip_prefix(PTY_PORT_PREFIX) {
-        Ok(Box::new(SerialDatalogger::connect_pty(port_name)?))
-    } else {
-        Ok(Box::new(SerialDatalogger::connect(selected_port)?))
+        )));
     }
+
+    #[cfg(unix)]
+    if let Some(port_name) = selected_port.strip_prefix(PTY_PORT_PREFIX) {
+        return Ok(Box::new(SerialDatalogger::connect_pty(port_name)?));
+    }
+
+    Ok(Box::new(SerialDatalogger::connect(selected_port)?))
 }
 
 #[cfg(not(test))]
